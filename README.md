@@ -23,12 +23,12 @@ https://geo-coverage-poc-sidecar-production.up.railway.app/static/map_widget.htm
 
 ## What it does
 
-Draw coverage boundaries for logistics services (pickup zones, drop zones, outstation rings) using two modes:
+Draw coverage boundaries for services (pickup zones, drop zones, outstation boundaries) using two modes:
 
 - **✏ Polygon Draw** — Draw a polygon on the map → auto-converts to H3 hexagonal cells
 - **⬡ Hex Select** — Zoom in and click individual hex cells to select/deselect
 
-Both modes output the same format: an array of H3 cell IDs — the production storage format for the Availability Engine.
+Both modes output the same format: an array of H3 cell IDs — the production storage format for Availability Engine.
 
 ---
 
@@ -41,9 +41,7 @@ pip install -r requirements-dev.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Open: `http://localhost:8000/static/map_widget.html`
-
-API docs: `http://localhost:8000/docs`
+Open: `https://geo-coverage-poc-sidecar-production.up.railway.app/static/map_widget.html`
 
 ---
 
@@ -54,7 +52,7 @@ API docs: `http://localhost:8000/docs`
 - **h3 (Python)** — server-side polygon → H3 cell conversion
 - **h3-js** — client-side viewport hex grid rendering
 - **Leaflet.js + Leaflet.draw** — interactive map and polygon drawing
-- **Railway** — deployment platform
+- **Railway** — deployment platform (for demo)
 
 ---
 
@@ -70,5 +68,3 @@ Saving a coverage returns both the original polygon and the H3 cell array:
   "polygon": { "type": "Polygon", "coordinates": [[...]] }
 }
 ```
-
-In production, `cell_ids` maps to `BIGINT[]` with a GIN index in PostgreSQL for O(log n) point-in-coverage checks at 1k QPS.
