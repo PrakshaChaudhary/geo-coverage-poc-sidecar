@@ -5,7 +5,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
-    #map { width: 100%; height: calc(100% - 48px); }
+    #map { width: 100%; height: calc(100vh - 48px); }
     #toolbar {
       height: 48px; background: #1a1a2e; color: white;
       display: flex; align-items: center; gap: 8px; padding: 0 12px;
@@ -404,6 +404,11 @@
 
     // Init
     setMode(_initMode);
+
+    // Force Leaflet to recalculate after IFrame renders inside ToolJet
+    setTimeout(() => map.invalidateSize(), 250);
+    setTimeout(() => map.invalidateSize(), 800);
+    window.addEventListener("resize", () => map.invalidateSize());
   </script>
 </body>
 </html>
