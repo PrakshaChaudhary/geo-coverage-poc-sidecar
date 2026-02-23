@@ -1,0 +1,6 @@
+tests/
+generate_mock.py
+__pycache__/
+*.pyc
+.pytest_cache/
+requirements-dev.txt

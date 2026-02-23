@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
+    #map { width: 100%; height: calc(100% - 48px); }
+    #toolbar {
+      height: 48px; background: #1a1a2e; color: white;
+      display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      font-family: sans-serif; font-size: 13px; flex-wrap: nowrap;
+    }
+    #toolbar label { color: #aaa; font-size: 11px; }
+    #toolbar select, #toolbar input {
+      padding: 4px 6px; border-radius: 4px; border: none;
+      background: #16213e; color: white; font-size: 12px; cursor: pointer;
+    }
+    .mode-btn {
+      padding: 5px 12px; border-radius: 4px; border: 1px solid #555;
+      font-size: 12px; cursor: pointer; background: #16213e; color: #aaa;
+      font-weight: 600; transition: all 0.15s;
+    }
+    .mode-btn.active { background: #1565C0; color: white; border-color: #1565C0; }
+    #saveBtn {
+      padding: 6px 14px; border-radius: 4px; border: none;
+      font-size: 12px; cursor: pointer; font-weight: 700;
+      background: #2e7d32; color: white; margin-left: auto;
+    }
+    #saveBtn:disabled { background: #555; cursor: not-allowed; color: #999; }
+    #clearBtn {
+      padding: 6px 12px; border-radius: 4px; border: none;
+      font-size: 12px; cursor: pointer; background: #333; color: #ccc;
+    }
+    #cellCount {
+      background: #0f3460; padding: 3px 10px; border-radius: 10px;
+      font-size: 12px; white-space: nowrap;
+    }
+    #msg { font-size: 11px; color: #88aaff; white-space: nowrap; overflow: hidden; max-width: 200px; }
+
+    /* Output panel */
+    #output-panel {
+      display: none; position: absolute; top: 54px; right: 8px; z-index: 2000;
+      background: #fff; border: 2px solid #1565C0; border-radius: 10px;
+      padding: 0; width: 360px; max-height: 80vh; overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); font-family: sans-serif;
+    }
+    #output-panel .panel-header {
+      background: #1565C0; color: white; padding: 10px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-radius: 8px 8px 0 0;
+    }
+    #output-panel .panel-header span { font-size: 14px; font-weight: 700; }
+    #output-panel .close-btn {
+      background: none; border: none; color: white; font-size: 20px;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+    #output-panel .section {
+      padding: 12px 14px; border-bottom: 1px solid #eee;
+    }
+    #output-panel .section h4 {
+      font-size: 11px; text-transform: uppercase; color: #888;
+      letter-spacing: 0.5px; margin-bottom: 8px;
+    }
+    #output-panel table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #output-panel td { padding: 3px 0; vertical-align: top; }
+    #output-panel td:first-child { color: #666; width: 110px; }
+    #output-panel td:last-child { font-weight: 600; color: #222; }
+    #output-panel .code-block {
+      background: #f5f5f5; border-radius: 4px; padding: 8px;
+      font-family: monospace; font-size: 10px; color: #333;
+      word-break: break-all; max-height: 100px; overflow-y: auto;
+      margin-top: 4px; white-space: pre-wrap;
+    }
+    #output-panel .badge {
+      display: inline-block; background: #e3f2fd; color: #1565C0;
+      border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700;
+    }
+    .hex-info {
+      position: absolute; bottom: 8px; left: 8px; z-index: 1000;
+      background: rgba(21,101,192,0.9); color: white;
+      padding: 4px 10px; border-radius: 4px; font-size: 11px;
+      font-family: sans-serif; display: none;
+    }
+  </style>
+  <link rel="stylesheet" href="http://localhost:8000/static/libs/leaflet.css" />
+  <link rel="stylesheet" href="http://localhost:8000/static/libs/leaflet.draw.css" />
+</head>
+<body>
+  <div id="toolbar">
+    <div>
+      <label>City</label><br>
+      <select id="citySelect" onchange="currentCity=this.value">
+        <option value="bangalore">Bengaluru</option>
+        <option value="mumbai">Mumbai</option>
+        <option value="delhi">Delhi NCR</option>
+        <option value="hyderabad">Hyderabad</option>
+        <option value="chennai">Chennai</option>
+        <option value="pune">Pune</option>
+        <option value="kolkata">Kolkata</option>
+      </select>
+    </div>
+    <div>
+      <label>Resolution</label><br>
+      <select id="resSelect" onchange="onResChange()">
+        <option value="9">9 (~0.1km&#178;)</option>
+        <option value="8">8 (~0.74km&#178;)</option>
+        <option value="7">7 (~5.2km&#178;)</option>
+      </select>
+    </div>
+    <div>
+      <label>Mode</label><br>
+      <div style="display:flex;gap:4px;">
+        <button class="mode-btn active" id="btnPolygon" onclick="setMode('polygon')">&#9999; Polygon</button>
+        <button class="mode-btn" id="btnHex" onclick="setMode('hex')">&#11041; Hex Select</button>
+      </div>
+    </div>
+    <span id="msg">Draw a polygon or select hexes</span>
+    <span id="cellCount">Cells: 0</span>
+    <button id="saveBtn" onclick="saveCoverage()" disabled>Save</button>
+    <button id="clearBtn" onclick="clearAll()">Clear</button>
+  </div>
+
+  <div id="map"></div>
+  <div class="hex-info" id="hexInfo">&#11041; Hex mode &#8212; click cells to select. Zoom in for finer resolution.</div>
+
+  <!-- Output Panel -->
+  <div id="output-panel">
+    <div class="panel-header">
+      <span>&#10003; Coverage Saved</span>
+      <button class="close-btn" onclick="document.getElementById('output-panel').style.display='none'">&#215;</button>
+    </div>
+    <div class="section">
+      <h4>Summary</h4>
+      <table id="out-summary"></table>
+    </div>
+    <div class="section">
+      <h4>Input &#8212; Polygon (GeoJSON)</h4>
+      <div style="font-size:11px;color:#666;margin-bottom:4px;">This is what you drew on the map. Stored for audit/reference.</div>
+      <div class="code-block" id="out-polygon">&#8212;</div>
+    </div>
+    <div class="section">
+      <h4>Output &#8212; H3 Cells <span class="badge">PRODUCTION FORMAT</span></h4>
+      <div style="font-size:11px;color:#666;margin-bottom:4px;">Stored as <code>BIGINT[]</code> with GIN index. Used for O(log n) point-in-coverage queries at 1k QPS.</div>
+      <div class="code-block" id="out-cells">&#8212;</div>
+    </div>
+  </div>
+
+  <script src="http://localhost:8000/static/libs/leaflet.js"></script>
+  <script src="http://localhost:8000/static/libs/leaflet.draw.js"></script>
+  <script src="http://localhost:8000/static/libs/h3-js.umd.js"></script>
+  <script>
+    // Auto-detect sidecar URL:
+    // - If URL param ?sidecar=https://... is set, use that
+    // - If served from localhost, use localhost:8000
+    // - Otherwise use same origin as the page (production deployment)
+    const _sidecarParam = new URLSearchParams(window.location.search).get('sidecar');
+    const SIDECAR = _sidecarParam ||
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8000'
+        : window.location.origin);
+
+    // Read URL params (from ToolJet IFrame source)
+    const _p = new URLSearchParams(window.location.search);
+    let currentCity = _p.get('city') || 'bangalore';
+    const _initRes  = _p.get('res')  || '9';
+    const _initMode = _p.get('mode') || 'polygon';
+
+    document.getElementById('citySelect').value = currentCity;
+    document.getElementById('resSelect').value  = _initRes;
+
+    // Map — India view, no city boundaries
+    const map = L.map('map', { preferCanvas: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    }).addTo(map);
+    map.setView([22.5, 82.0], 5);
+
+    // State
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    let previewLayer  = null;
+    let hexGridLayer  = null;
+    let selectedCells = new Set();
+    let lastPolygon   = null;   // original GeoJSON polygon (for output)
+    let currentMode   = 'polygon';
+    let hexTimer      = null;
+
+    // Draw control (polygon mode)
+    const drawControl = new L.Control.Draw({
+      draw: {
+        polygon: { shapeOptions: { color: '#FF6B35', fillOpacity: 0.15, weight: 2 } },
+        polyline: false, rectangle: false, circle: false, circlemarker: false, marker: false,
+      },
+      edit: { featureGroup: drawnItems },
+    });
+    map.addControl(drawControl);
+
+    // Helpers
+    function setMsg(t)   { document.getElementById('msg').textContent = t; }
+    function setCells(n) { document.getElementById('cellCount').textContent = 'Cells: ' + Number(n).toLocaleString(); }
+
+    function res() { return parseInt(document.getElementById('resSelect').value); }
+
+    function resLabel(r) {
+      return { 7: 'H3 Res 7 (~5.2 km\u00b2/cell)', 8: 'H3 Res 8 (~0.74 km\u00b2/cell)', 9: 'H3 Res 9 (~0.1 km\u00b2/cell)' }[r] || ('H3 Res ' + r);
+    }
+
+    // Mode switching
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('btnPolygon').classList.toggle('active', mode === 'polygon');
+      document.getElementById('btnHex').classList.toggle('active', mode === 'hex');
+      document.getElementById('hexInfo').style.display = mode === 'hex' ? 'block' : 'none';
+
+      if (mode === 'polygon') {
+        map.addControl(drawControl);
+        clearHexGrid();
+        map.off('moveend zoomend', scheduleHexRender);
+      } else {
+        try { map.removeControl(drawControl); } catch(_) {}
+        drawnItems.clearLayers();
+        lastPolygon = null;
+        if (previewLayer) { map.removeLayer(previewLayer); previewLayer = null; }
+        map.on('moveend zoomend', scheduleHexRender);
+        renderHexGrid();
+      }
+    }
+
+    // Polygon mode
+    map.on(L.Draw.Event.CREATED, async (e) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      if (previewLayer) { map.removeLayer(previewLayer); previewLayer = null; }
+
+      lastPolygon = e.layer.toGeoJSON().geometry;
+      await polyfillAndPreview(lastPolygon);
+    });
+
+    async function polyfillAndPreview(geojson) {
+      setMsg('Computing H3 cells\u2026');
+      try {
+        const resp = await fetch(SIDECAR + '/api/polyfill', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geojson, resolution: res(),
+            entity_type: 'drop_coverage', clip_to_city: false,
+          }),
+        });
+        const d = await resp.json();
+
+        // Add new cells to selection
+        selectedCells = new Set(d.cell_ids);
+
+        if (previewLayer) map.removeLayer(previewLayer);
+        previewLayer = L.geoJSON(d.geojson, {
+          style: { color: '#E65100', fillColor: '#FF6B35', fillOpacity: 0.5, weight: 0.8 }
+        }).addTo(map);
+
+        setCells(d.cell_count);
+        setMsg(d.cell_count.toLocaleString() + ' cells \u2014 ready to save');
+        document.getElementById('saveBtn').disabled = false;
+      } catch(err) { setMsg('Error: ' + err.message); }
+    }
+
+    function onResChange() {
+      if (currentMode === 'polygon' && lastPolygon) polyfillAndPreview(lastPolygon);
+      if (currentMode === 'hex') renderHexGrid();
+    }
+
+    // Hex selection mode
+    function scheduleHexRender() {
+      if (hexTimer) clearTimeout(hexTimer);
+      hexTimer = setTimeout(renderHexGrid, 150);
+    }
+
+    function clearHexGrid() {
+      if (hexGridLayer) { map.removeLayer(hexGridLayer); hexGridLayer = null; }
+    }
+
+    function renderHexGrid() {
+      if (currentMode !== 'hex') return;
+      clearHexGrid();
+
+      const z = map.getZoom();
+      const r = res();
+      const minZoom = { 7: 7, 8: 9, 9: 11 }[r] || 11;
+
+      if (z < minZoom) {
+        setMsg('Zoom in to level ' + minZoom + '+ to interact with resolution ' + r + ' hexes');
+        return;
+      }
+      setMsg('Click hexes to select/deselect');
+
+      const b = map.getBounds();
+      const ring = [
+        [b.getNorth(), b.getWest()], [b.getNorth(), b.getEast()],
+        [b.getSouth(), b.getEast()], [b.getSouth(), b.getWest()],
+        [b.getNorth(), b.getWest()],
+      ];
+
+      let viewCells;
+      try { viewCells = h3.polygonToCells(ring, r); } catch(e) { return; }
+
+      if (viewCells.length > 4000) {
+        setMsg('Too many cells (' + viewCells.length.toLocaleString() + ') \u2014 zoom in further');
+        return;
+      }
+
+      const features = viewCells.map(id => {
+        const bd = h3.cellToBoundary(id);
+        const coords = bd.map(([lat, lng]) => [lng, lat]);
+        coords.push(coords[0]);
+        return {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [coords] },
+          properties: { id, selected: selectedCells.has(id) },
+        };
+      });
+
+      hexGridLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+        style: f => f.properties.selected
+          ? { fillColor: '#FF6B35', color: '#E65100', fillOpacity: 0.7, weight: 1 }
+          : { fillColor: '#1565C0', color: '#0D47A1', fillOpacity: 0.08, weight: 0.5 },
+        onEachFeature: (f, layer) => {
+          layer.on('click', () => {
+            const id = f.properties.id;
+            if (selectedCells.has(id)) selectedCells.delete(id);
+            else selectedCells.add(id);
+            setCells(selectedCells.size);
+            document.getElementById('saveBtn').disabled = selectedCells.size === 0;
+            renderHexGrid();
+          });
+        },
+      }).addTo(map);
+    }
+
+    // Save
+    async function saveCoverage() {
+      if (!selectedCells.size) return;
+      document.getElementById('saveBtn').disabled = true;
+      setMsg('Saving\u2026');
+
+      const cellArray = Array.from(selectedCells);
+      try {
+        const resp = await fetch(SIDECAR + '/api/boundaries/drop_coverage', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            georegion_id: currentCity,
+            cell_ids: cellArray,
+            resolution: res(),
+            metadata: { source: currentMode === 'polygon' ? 'polygon_draw' : 'hex_select' },
+            polygon: lastPolygon || null,   // include original polygon if available
+          }),
+        });
+        const d = await resp.json();
+
+        // Show output panel
+        document.getElementById('out-summary').innerHTML =
+          '<tr><td>Status</td><td style="color:#2e7d32">\u2713 ' + d.status + '</td></tr>' +
+          '<tr><td>Coverage ID</td><td style="font-family:monospace;font-size:11px">' + (d.id || '').substring(0, 8) + '\u2026</td></tr>' +
+          '<tr><td>City</td><td>' + currentCity + '</td></tr>' +
+          '<tr><td>Input method</td><td>' + (currentMode === 'polygon' ? '\u270f Polygon drawing' : '\u2b21 Hex selection') + '</td></tr>' +
+          '<tr><td>Cells saved</td><td style="color:#1565C0;font-size:16px">' + d.cell_count.toLocaleString() + '</td></tr>' +
+          '<tr><td>Resolution</td><td>' + resLabel(res()) + '</td></tr>' +
+          '<tr><td>Storage format</td><td style="font-family:monospace;font-size:11px">BIGINT[] + GIN index</td></tr>';
+
+        // Polygon section
+        if (lastPolygon) {
+          document.getElementById('out-polygon').textContent = JSON.stringify(lastPolygon, null, 2);
+        } else {
+          document.getElementById('out-polygon').textContent =
+            '(No polygon \u2014 cells were selected directly in hex mode)';
+        }
+
+        // H3 cells section
+        const sample = cellArray.slice(0, 8).join('\n');
+        const more = cellArray.length > 8 ? '\n\u2026 +' + (cellArray.length - 8) + ' more cells' : '';
+        document.getElementById('out-cells').textContent = sample + more;
+
+        document.getElementById('output-panel').style.display = 'block';
+        setMsg('\u2713 Saved ' + d.cell_count.toLocaleString() + ' cells');
+
+        // Notify ToolJet parent to refresh table
+        try { window.parent.postMessage(JSON.stringify({ type: 'SAVE_COMPLETE', ...d }), '*'); } catch(_) {}
+      } catch(err) {
+        setMsg('Save failed: ' + err.message);
+        document.getElementById('saveBtn').disabled = false;
+      }
+    }
+
+    // Clear
+    function clearAll() {
+      drawnItems.clearLayers();
+      if (previewLayer) { map.removeLayer(previewLayer); previewLayer = null; }
+      clearHexGrid();
+      selectedCells = new Set();
+      lastPolygon = null;
+      setCells(0);
+      document.getElementById('saveBtn').disabled = true;
+      document.getElementById('output-panel').style.display = 'none';
+      setMsg('Draw a polygon or select hexes');
+      if (currentMode === 'hex') renderHexGrid();
+    }
+
+    // Init
+    setMode(_initMode);
+  </script>
+</body>
+</html>
