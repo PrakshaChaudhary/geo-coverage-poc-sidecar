@@ -52,8 +52,6 @@ Open: `https://geo-coverage-poc-sidecar-production.up.railway.app/static/map_wid
 - **h3 (Python)** — server-side polygon → H3 cell conversion
 - **h3-js** — client-side viewport hex grid rendering
 - **Leaflet.js + Leaflet.draw** — interactive map and polygon drawing
-- **Railway** — deployment platform (for demo)
-
 ---
 
 ## Output format
